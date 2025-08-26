@@ -1,0 +1,1009 @@
+<ul class="text-sm text-blue-800 space-y-1">
+                        <li><strong>DOCX Processing:</strong> Converts Word docs to HTML, preserves bold/italic formatting</li>
+                        <li><strong>ZIP Processing:</strong> Extracts body content, removes class/id, converts p>span>img to div.image-border</li>
+                        <li><strong>URL cleanup:</strong> Removes Google redirect URLs (google.com/url?q=...)</li>
+                        <li><strong>Heading cleanup:</strong> Removes span tags from h1-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Link Updater</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .font-mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-6 py-8 max-w-7xl">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">HTML Link Updater</h1>
+            <p class="text-gray-600">Process HTML links with custom rules for SocialPilot and external links</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- File Upload Section -->
+            <div class="lg:col-span-2 mb-8">
+                <div class="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">📁 File Processing</h2>
+                    <div class="space-y-4">
+                        
+                        <!-- ZIP Upload -->
+                        <div class="border-b border-purple-200 pb-4">
+                            <h3 class="font-semibold text-gray-800 mb-2">ZIP File Upload</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label for="zipUpload" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Upload ZIP file (containing .html files and images folder)
+                                    </label>
+                                    <input 
+                                        type="file" 
+                                        id="zipUpload" 
+                                        accept=".zip"
+                                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 border border-gray-300 rounded-lg"
+                                    >
+                                </div>
+                                <div class="flex flex-wrap gap-3 items-center">
+                                    <button 
+                                        id="processZipBtn"
+                                        class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 text-sm"
+                                        disabled
+                                    >
+                                        Process ZIP
+                                    </button>
+                                    <span id="zipStatus" class="text-sm text-gray-600"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DOCX Upload -->
+                        <div>
+                            <h3 class="font-semibold text-gray-800 mb-2">DOCX File Upload</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label for="docxUpload" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Upload DOCX file (Word document)
+                                    </label>
+                                    <input 
+                                        type="file" 
+                                        id="docxUpload" 
+                                        accept=".docx"
+                                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-lg"
+                                    >
+                                </div>
+                                <div class="flex flex-wrap gap-3 items-center">
+                                    <button 
+                                        id="processDocxBtn"
+                                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-sm"
+                                        disabled
+                                    >
+                                        Process DOCX
+                                    </button>
+                                    <span id="docxStatus" class="text-sm text-gray-600"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Results -->
+                        <div id="fileResults" class="hidden space-y-4 border-t border-purple-200 pt-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="bg-white rounded-lg border p-4">
+                                    <h4 class="font-semibold text-gray-900 mb-2">📄 Content Extracted:</h4>
+                                    <div id="contentInfo" class="text-sm text-gray-600"></div>
+                                </div>
+                                <div class="bg-white rounded-lg border p-4">
+                                    <h4 class="font-semibold text-gray-900 mb-2">🖼️ Images Found:</h4>
+                                    <div id="imageFiles" class="text-sm text-gray-600 mb-3"></div>
+                                    <button 
+                                        id="downloadWebPBtn"
+                                        class="hidden px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                    >
+                                        Download WebP Images (ZIP)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Section -->
+            <div class="space-y-4">
+                <div>
+                    <label for="inputHtml" class="block text-lg font-semibold text-gray-900 mb-3">
+                        Input HTML
+                    </label>
+                    <textarea 
+                        id="inputHtml" 
+                        placeholder="Paste your HTML here..."
+                        class="w-full h-96 p-4 border border-gray-300 rounded-lg font-mono text-sm resize-y focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    ></textarea>
+                </div>
+                
+                <div class="flex flex-wrap gap-3">
+                    <button 
+                        id="processBtn"
+                        class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                        Process HTML
+                    </button>
+                    <button 
+                        id="demoBtn"
+                        class="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    >
+                        Fill Demo
+                    </button>
+                    <button 
+                        id="clearBtn"
+                        class="px-6 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded-lg transition-colors focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                    >
+                        Clear
+                    </button>
+                </div>
+
+                <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 class="font-semibold text-blue-900 mb-2">Processing Rules:</h3>
+                    <ul class="text-sm text-blue-800 space-y-1">
+                        <li><strong>ZIP Processing:</strong> Extracts body content, removes class/id, converts p>span>img to div.image-border</li>
+                        <li><strong>URL cleanup:</strong> Removes Google redirect URLs (google.com/url?q=...)</li>
+                        <li><strong>Heading cleanup:</strong> Removes span tags from h1-h6 elements while preserving content</li>
+                        <li><strong>Empty tag removal:</strong> Removes empty tags like &lt;p&gt;&lt;span&gt;&lt;/span&gt;&lt;/p&gt;</li>
+                        <li><strong>SocialPilot links:</strong> Remove nofollow, add dofollow + smart title generation + remove target</li>
+                        <li><strong>External links:</strong> Add nofollow/noopener/noreferrer + target="_blank" ONLY if no existing rel attribute</li>
+                        <li><strong>Existing rel attributes:</strong> Preserved unchanged for external links</li>
+                        <li><strong>Image conversion:</strong> WordPress figure blocks → div.image-border structure with empty src</li>
+                        <li><strong>Cleanup:</strong> Remove font-weight: 400 styles, data-start/data-end attributes, and HTML comments</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Output Section -->
+            <div class="space-y-4">
+                <div>
+                    <label for="outputHtml" class="block text-lg font-semibold text-gray-900 mb-3">
+                        Output HTML
+                    </label>
+                    <textarea 
+                        id="outputHtml" 
+                        readonly
+                        placeholder="Processed HTML will appear here..."
+                        class="w-full h-96 p-4 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50 resize-y"
+                    ></textarea>
+                </div>
+                
+                <div class="flex flex-wrap gap-3 items-center">
+                    <button 
+                        id="copyBtn"
+                        class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                        disabled
+                    >
+                        Copy Output
+                    </button>
+                    <span id="processedIndicator" class="hidden text-green-700 font-semibold bg-green-100 px-3 py-1 rounded-full text-sm">
+                        ✓ Processed Successfully
+                    </span>
+                    <span id="copyIndicator" class="hidden text-blue-700 font-semibold bg-blue-100 px-3 py-1 rounded-full text-sm">
+                        ✓ Copied to Clipboard
+                    </span>
+                </div>
+
+                <div id="stats" class="hidden p-4 bg-gray-100 rounded-lg">
+                    <h4 class="font-semibold text-gray-900 mb-2">Processing Stats:</h4>
+                    <div class="text-sm text-gray-700 space-y-1">
+                        <div>Links processed: <span id="linkCount" class="font-mono">0</span></div>
+                        <div>SocialPilot links: <span id="socialPilotCount" class="font-mono">0</span></div>
+                        <div>External links: <span id="externalCount" class="font-mono">0</span></div>
+                        <div>Comments removed: <span id="commentCount" class="font-mono">0</span></div>
+                        <div>Attributes cleaned: <span id="attrCount" class="font-mono">0</span></div>
+                        <div>Images processed: <span id="imageCount" class="font-mono">0</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-12 pt-6 border-t border-gray-200 text-center">
+            <p class="text-gray-500 text-sm">
+                🔒 Local tool - No data is sent anywhere except your browser
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        class HTMLLinkProcessor {
+            constructor() {
+                this.stats = {
+                    linkCount: 0,
+                    socialPilotCount: 0,
+                    externalCount: 0,
+                    commentCount: 0,
+                    attrCount: 0,
+                    imageCount: 0
+                };
+            }
+
+            createTitleFromUrl(href) {
+                if (!href) return "SocialPilot";
+                
+                try {
+                    // Remove trailing slash and get the last segment
+                    let slug = href.replace(/\/$/, '').split('/').pop();
+                    
+                    // Remove query parameters and hash
+                    slug = slug.split('?')[0].split('#')[0];
+                    
+                    // If it's just the domain or empty slug, extract domain name
+                    if (!slug || slug === href.split('//')[1]?.split('/')[0]) {
+                        const domain = href.split('//')[1]?.split('/')[0];
+                        if (domain && domain.includes('socialpilot')) {
+                            return "SocialPilot";
+                        }
+                        return domain || "SocialPilot";
+                    }
+                    
+                    // Decode URL and replace hyphens/underscores with spaces
+                    let title = decodeURIComponent(slug)
+                        .replace(/[-_]/g, ' ')
+                        .replace(/\s+/g, ' ') // normalize multiple spaces
+                        .trim();
+                    
+                    // Capitalize first letter of each word
+                    title = title.split(' ')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                        .join(' ');
+                    
+                    return title || "SocialPilot";
+                } catch (e) {
+                    return "SocialPilot";
+                }
+            }
+
+            normalizeRel(value) {
+                let items = [];
+                if (Array.isArray(value)) {
+                    items = value;
+                } else if (typeof value === 'string') {
+                    items = value.split(/\s+/);
+                }
+                return new Set(items.filter(item => item.length > 0));
+            }
+
+            processHTML(html) {
+                if (!html.trim()) return '';
+                
+                this.resetStats();
+                
+                // Create a temporary DOM element to work with
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+
+                // Remove HTML comments
+                this.removeComments(tempDiv);
+
+                // Clean attributes and process links
+                this.cleanAttributes(tempDiv);
+                this.processLinks(tempDiv);
+                this.processImages(tempDiv);
+
+                return tempDiv.innerHTML;
+            }
+
+            removeComments(element) {
+                const walker = document.createTreeWalker(
+                    element,
+                    NodeFilter.SHOW_COMMENT,
+                    null,
+                    false
+                );
+
+                const comments = [];
+                let node;
+                while (node = walker.nextNode()) {
+                    comments.push(node);
+                }
+
+                comments.forEach(comment => {
+                    comment.remove();
+                    this.stats.commentCount++;
+                });
+            }
+
+            cleanAttributes(element) {
+                const fwPattern = /(^|;)\s*font-weight\s*:\s*400\s*;?(?=;|$)/gi;
+                const allElements = element.querySelectorAll('*');
+
+                allElements.forEach(tag => {
+                    // Remove font-weight: 400 from style
+                    const style = tag.getAttribute('style');
+                    if (style && fwPattern.test(style)) {
+                        const newStyle = style.replace(fwPattern, '$1').replace(/^;+|;+$/g, '').replace(/;;+/g, ';');
+                        if (newStyle.trim()) {
+                            tag.setAttribute('style', newStyle);
+                        } else {
+                            tag.removeAttribute('style');
+                        }
+                        this.stats.attrCount++;
+                    }
+
+                    // Remove data-start and data-end attributes
+                    ['data-start', 'data-end'].forEach(attr => {
+                        if (tag.hasAttribute(attr)) {
+                            tag.removeAttribute(attr);
+                            this.stats.attrCount++;
+                        }
+                    });
+                });
+            }
+
+            processLinks(element) {
+                const links = element.querySelectorAll('a[href]');
+                this.stats.linkCount = links.length;
+
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    const currentRel = this.normalizeRel(link.getAttribute('rel') || '');
+
+                    if (href.includes('socialpilot')) {
+                        // SocialPilot link processing
+                        // Remove nofollow if present and add dofollow
+                        currentRel.delete('nofollow');
+                        currentRel.add('dofollow');
+                        link.setAttribute('rel', Array.from(currentRel).sort().join(' '));
+                        
+                        // Handle title - only add/update if no meaningful title exists
+                        const existingTitle = link.getAttribute('title');
+                        if (!existingTitle || existingTitle.trim() === '' || 
+                            existingTitle.includes('socialpilot.co') || 
+                            existingTitle.includes('www.socialpilot.co') ||
+                            existingTitle.replace(/[-_\s]/g, '').toLowerCase() === href.replace(/[-_\s\/]/g, '').toLowerCase().split('socialpilot')[0]) {
+                            
+                            const generatedTitle = this.createTitleFromUrl(href);
+                            link.setAttribute('title', generatedTitle);
+                        }
+                        
+                        // Remove target attribute for SocialPilot links
+                        if (link.hasAttribute('target')) {
+                            link.removeAttribute('target');
+                        }
+                        
+                        this.stats.socialPilotCount++;
+                    } else {
+                        // External link processing
+                        const originalRel = link.getAttribute('rel');
+                        
+                        if (!originalRel || originalRel.trim() === '') {
+                            // No existing rel attribute - add nofollow attributes
+                            currentRel.add('nofollow');
+                            currentRel.add('noopener');
+                            currentRel.add('noreferrer');
+                            link.setAttribute('rel', Array.from(currentRel).sort().join(' '));
+                            link.setAttribute('target', '_blank');
+                            
+                            // Add title for external links only if they don't have one
+                            const existingTitle = link.getAttribute('title');
+                            if (!existingTitle || existingTitle.trim() === '') {
+                                try {
+                                    const url = new URL(href);
+                                    const domain = url.hostname.replace(/^www\./, '');
+                                    const domainTitle = domain.split('.')[0];
+                                    const capitalizedTitle = domainTitle.charAt(0).toUpperCase() + domainTitle.slice(1);
+                                    link.setAttribute('title', `Visit ${capitalizedTitle}`);
+                                } catch (e) {
+                                    // If URL parsing fails, use a generic title
+                                    link.setAttribute('title', 'External Link');
+                                }
+                            }
+                        } else {
+                            // Has existing rel attribute - keep it unchanged
+                            // Just normalize the existing rel values (remove duplicates, sort)
+                            link.setAttribute('rel', Array.from(currentRel).sort().join(' '));
+                        }
+                        this.stats.externalCount++;
+                    }
+                });
+            }
+
+            processImages(element) {
+                // Find WordPress figure blocks with images
+                const figures = element.querySelectorAll('figure.wp-block-image img, figure img');
+                
+                figures.forEach(img => {
+                    const figure = img.closest('figure');
+                    if (!figure) return;
+
+                    const src = img.getAttribute('src') || '';
+                    const alt = img.getAttribute('alt') || '';
+                    const title = img.getAttribute('title') || '';
+
+                    // Check if it's a Google Drive or similar problematic URL
+                    const isProblematicUrl = src.includes('googleusercontent.com') || 
+                                           src.includes('googledrive.com') ||
+                                           src.includes('dropbox.com') ||
+                                           src.includes('onedrive.com') ||
+                                           src.match(/[?&]key=/);
+
+                    if (isProblematicUrl || figure.classList.contains('wp-block-image')) {
+                        // Create new div structure
+                        const newDiv = document.createElement('div');
+                        newDiv.className = 'image-border';
+
+                        const newImg = document.createElement('img');
+                        newImg.setAttribute('src', ''); // Empty src as requested
+                        newImg.setAttribute('width', '700');
+                        newImg.setAttribute('height', '391');
+                        newImg.setAttribute('alt', alt);
+                        newImg.setAttribute('class', 'img-fluid wp-image-726795');
+                        newImg.setAttribute('title', title);
+
+                        newDiv.appendChild(newImg);
+                        
+                        // Replace the figure with the new div
+                        figure.parentNode.replaceChild(newDiv, figure);
+                        this.stats.imageCount++;
+                    }
+                });
+            }
+
+            resetStats() {
+                this.stats = {
+                    linkCount: 0,
+                    socialPilotCount: 0,
+                    externalCount: 0,
+                    commentCount: 0,
+                    attrCount: 0,
+                    imageCount: 0
+                };
+            }
+
+            getStats() {
+                return this.stats;
+            }
+        }
+
+        // Global variables for zip processing
+        let zipData = null;
+        let convertedImages = [];
+
+        // Initialize the processor
+        const processor = new HTMLLinkProcessor();
+
+        // DOM elements
+        const inputHtml = $('#inputHtml');
+        const outputHtml = $('#outputHtml');
+        const processBtn = $('#processBtn');
+        const demoBtn = $('#demoBtn');
+        const clearBtn = $('#clearBtn');
+        const copyBtn = $('#copyBtn');
+        const processedIndicator = $('#processedIndicator');
+        const copyIndicator = $('#copyIndicator');
+        const stats = $('#stats');
+
+        // File processing elements
+        const zipUpload = $('#zipUpload');
+        const processZipBtn = $('#processZipBtn');
+        const zipStatus = $('#zipStatus');
+        const docxUpload = $('#docxUpload');
+        const processDocxBtn = $('#processDocxBtn');
+        const docxStatus = $('#docxStatus');
+        const fileResults = $('#fileResults');
+        const contentInfo = $('#contentInfo');
+        const imageFiles = $('#imageFiles');
+        const downloadWebPBtn = $('#downloadWebPBtn');
+
+        // Image conversion function
+        function convertImageToWebP(imageBlob, quality = 0.8) {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    
+                    canvas.toBlob(resolve, 'image/webp', quality);
+                };
+                
+                img.src = URL.createObjectURL(imageBlob);
+            });
+        }
+
+        // Function to extract and clean body content (for HTML files)
+        function extractAndCleanBodyContent(htmlContent) {
+            try {
+                // Create a temporary DOM parser
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlContent, 'text/html');
+                
+                // Get body content
+                const body = doc.body;
+                if (!body) return htmlContent;
+
+                // Process each element in body
+                const processedElements = [];
+                
+                // Function to clean Google redirect URLs
+                const cleanGoogleUrl = (url) => {
+                    try {
+                        if (url.includes('google.com/url?q=')) {
+                            const urlObj = new URL(url);
+                            const actualUrl = urlObj.searchParams.get('q');
+                            return actualUrl ? decodeURIComponent(actualUrl) : url;
+                        }
+                        return url;
+                    } catch (e) {
+                        return url;
+                    }
+                };
+                
+                const walkElements = (element) => {
+                    Array.from(element.children).forEach(child => {
+                        if (child.tagName) {
+                            const tagName = child.tagName.toLowerCase();
+                            
+                            // Check for images inside p tags with spans
+                            if (tagName === 'p') {
+                                const spanWithImg = child.querySelector('span img');
+                                if (spanWithImg) {
+                                    // Convert p > span > img to div.image-border structure
+                                    const alt = spanWithImg.getAttribute('alt') || '';
+                                    const title = spanWithImg.getAttribute('title') || '';
+                                    
+                                    const imageDiv = `<div class="image-border">
+    <img src="" width="700" height="391" alt="${alt}" class="img-fluid wp-image-726795" title="${title}">
+</div>`;
+                                    processedElements.push(imageDiv);
+                                    return; // Skip further processing of this p tag
+                                }
+                            }
+                            
+                            // Create new clean element
+                            const newElement = document.createElement(tagName);
+                            
+                            // Copy innerHTML to preserve content structure
+                            newElement.innerHTML = child.innerHTML;
+                            
+                            // Clean Google redirect URLs in links
+                            const links = newElement.querySelectorAll('a[href]');
+                            links.forEach(link => {
+                                const href = link.getAttribute('href');
+                                if (href) {
+                                    link.setAttribute('href', cleanGoogleUrl(href));
+                                }
+                            });
+                            
+                            // Remove span tags from h1-h6 elements while preserving content
+                            if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+                                const spans = newElement.querySelectorAll('span');
+                                spans.forEach(span => {
+                                    // Replace span with its content, preserving inner HTML
+                                    const parent = span.parentNode;
+                                    while (span.firstChild) {
+                                        parent.insertBefore(span.firstChild, span);
+                                    }
+                                    parent.removeChild(span);
+                                });
+                            }
+                            
+                            // Remove all attributes (class, id, style, etc.) AFTER content processing
+                            Array.from(newElement.attributes).forEach(attr => {
+                                newElement.removeAttribute(attr.name);
+                            });
+                            
+                            // Recursively clean child elements but preserve essential attributes
+                            const cleanChildElements = (el) => {
+                                Array.from(el.children).forEach(childEl => {
+                                    const childTagName = childEl.tagName.toLowerCase();
+                                    
+                                    // Remove attributes from child elements
+                                    Array.from(childEl.attributes).forEach(attr => {
+                                        // Keep essential attributes for links and images
+                                        if (childTagName === 'a' && (attr.name === 'href' || attr.name === 'title' || attr.name === 'target' || attr.name === 'rel')) {
+                                            return; // Keep these attributes
+                                        }
+                                        if (childTagName === 'img' && (attr.name === 'src' || attr.name === 'alt' || attr.name === 'title' || attr.name === 'width' || attr.name === 'height')) {
+                                            return; // Keep these attributes
+                                        }
+                                        childEl.removeAttribute(attr.name);
+                                    });
+                                    cleanChildElements(childEl);
+                                });
+                            };
+                            
+                            cleanChildElements(newElement);
+                            
+                            // Check if element is empty (only whitespace, empty spans, etc.)
+                            const isEmpty = (element) => {
+                                // Get all text content
+                                const textContent = element.textContent.trim();
+                                
+                                // Check if it has meaningful child elements (not just empty spans)
+                                const hasContent = element.querySelector('img, a[href], input, button') !== null;
+                                
+                                // Element is empty if no text and no meaningful children
+                                return textContent === '' && !hasContent;
+                            };
+                            
+                            // Only add non-empty elements
+                            if (!isEmpty(newElement)) {
+                                processedElements.push(newElement.outerHTML);
+                            }
+                        }
+                    });
+                };
+                
+                walkElements(body);
+                
+                // Join with line breaks for better formatting
+                return processedElements.join('\n\n');
+                
+            } catch (error) {
+                console.error('Error processing HTML:', error);
+                return htmlContent;
+            }
+        }
+
+        // Function to process DOCX content and preserve bold formatting
+        function processDocxContent(htmlContent) {
+            try {
+                // Create a temporary DOM parser
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlContent, 'text/html');
+                
+                // Get body content
+                const body = doc.body || doc.documentElement;
+                if (!body) return htmlContent;
+
+                const processedElements = [];
+                
+                const walkElements = (element) => {
+                    Array.from(element.children).forEach(child => {
+                        if (child.tagName) {
+                            const tagName = child.tagName.toLowerCase();
+                            
+                            // Create new clean element
+                            const newElement = document.createElement(tagName);
+                            
+                            // Copy innerHTML to preserve content structure including bold/italic
+                            newElement.innerHTML = child.innerHTML;
+                            
+                            // Remove all attributes except for links and images
+                            Array.from(newElement.attributes).forEach(attr => {
+                                newElement.removeAttribute(attr.name);
+                            });
+                            
+                            // Recursively clean child elements but preserve formatting tags
+                            const cleanChildElements = (el) => {
+                                Array.from(el.children).forEach(childEl => {
+                                    const childTagName = childEl.tagName.toLowerCase();
+                                    
+                                    // Keep formatting tags (bold, italic, strong, em)
+                                    if (['b', 'strong', 'i', 'em', 'u'].includes(childTagName)) {
+                                        // Keep these formatting tags as-is
+                                        cleanChildElements(childEl);
+                                        return;
+                                    }
+                                    
+                                    // Remove attributes from other child elements
+                                    Array.from(childEl.attributes).forEach(attr => {
+                                        // Keep essential attributes for links and images
+                                        if (childTagName === 'a' && (attr.name === 'href' || attr.name === 'title' || attr.name === 'target' || attr.name === 'rel')) {
+                                            return;
+                                        }
+                                        if (childTagName === 'img' && (attr.name === 'src' || attr.name === 'alt' || attr.name === 'title' || attr.name === 'width' || attr.name === 'height')) {
+                                            return;
+                                        }
+                                        childEl.removeAttribute(attr.name);
+                                    });
+                                    cleanChildElements(childEl);
+                                });
+                            };
+                            
+                            cleanChildElements(newElement);
+                            
+                            // Check if element is empty
+                            const isEmpty = (element) => {
+                                const textContent = element.textContent.trim();
+                                const hasContent = element.querySelector('img, a[href], input, button, b, strong, i, em, u') !== null;
+                                return textContent === '' && !hasContent;
+                            };
+                            
+                            // Only add non-empty elements
+                            if (!isEmpty(newElement)) {
+                                processedElements.push(newElement.outerHTML);
+                            }
+                        }
+                    });
+                };
+                
+                walkElements(body);
+                
+                return processedElements.join('\n\n');
+                
+            } catch (error) {
+                console.error('Error processing DOCX content:', error);
+                return htmlContent;
+            }
+        }
+
+        // DOCX file processing
+        docxUpload.on('change', function() {
+            const file = this.files[0];
+            if (file) {
+                processDocxBtn.prop('disabled', false);
+                docxStatus.text(`Ready to process: ${file.name}`);
+            } else {
+                processDocxBtn.prop('disabled', true);
+                docxStatus.text('');
+            }
+        });
+
+        processDocxBtn.on('click', async function() {
+            const file = docxUpload[0].files[0];
+            if (!file) return;
+
+            try {
+                docxStatus.text('Processing DOCX file...');
+                processDocxBtn.prop('disabled', true);
+
+                const arrayBuffer = await file.arrayBuffer();
+                
+                // Convert DOCX to HTML using mammoth
+                const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
+                const htmlContent = result.value;
+                
+                // Process the HTML content to clean it up
+                const processedContent = processDocxContent(htmlContent);
+
+                // Update UI
+                if (processedContent) {
+                    inputHtml.val(processedContent);
+                    docxStatus.text('✅ DOCX processed successfully!');
+                    contentInfo.html(`DOCX content extracted and processed`);
+                } else {
+                    docxStatus.text('⚠️ No content found in DOCX');
+                    contentInfo.html('No content extracted');
+                }
+
+                // Show any conversion warnings
+                if (result.messages && result.messages.length > 0) {
+                    console.log('DOCX conversion messages:', result.messages);
+                }
+
+                fileResults.removeClass('hidden');
+                processDocxBtn.prop('disabled', false);
+
+            } catch (error) {
+                console.error('Full DOCX error:', error);
+                docxStatus.text('❌ Error processing DOCX file: ' + error.message);
+                processDocxBtn.prop('disabled', false);
+            }
+        });
+
+        // ZIP file processing
+        zipUpload.on('change', function() {
+            const file = this.files[0];
+            if (file) {
+                processZipBtn.prop('disabled', false);
+                zipStatus.text(`Ready to process: ${file.name}`);
+            } else {
+                processZipBtn.prop('disabled', true);
+                zipStatus.text('');
+            }
+        });
+
+        processZipBtn.on('click', async function() {
+            const file = zipUpload[0].files[0];
+            if (!file) return;
+
+            try {
+                zipStatus.text('Processing ZIP file...');
+                processZipBtn.prop('disabled', true);
+
+                const arrayBuffer = await file.arrayBuffer();
+                zipData = await JSZip.loadAsync(arrayBuffer);
+
+                let htmlContent = '';
+                let htmlCount = 0;
+                let imageCount = 0;
+                const imagePromises = [];
+                convertedImages = [];
+
+                // Process all files in the ZIP
+                for (const [filename, fileData] of Object.entries(zipData.files)) {
+                    if (!fileData.dir) {
+                        if (filename.toLowerCase().endsWith('.html')) {
+                            const content = await fileData.async('string');
+                            if (!htmlContent) { // Use the first HTML file found
+                                htmlContent = extractAndCleanBodyContent(content);
+                            }
+                            htmlCount++;
+                        } else if (filename.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)) {
+                            imageCount++;
+                            const imageBlob = await fileData.async('blob');
+                            
+                            // Convert to WebP
+                            const webpBlob = await convertImageToWebP(imageBlob);
+                            const webpName = filename.replace(/\.[^.]+$/, '.webp');
+                            
+                            convertedImages.push({
+                                name: webpName,
+                                blob: webpBlob,
+                                originalName: filename
+                            });
+                        }
+                    }
+                }
+
+                // Update UI
+                if (htmlContent) {
+                    inputHtml.val(htmlContent);
+                    zipStatus.text('✅ ZIP processed successfully!');
+                    contentInfo.html(`${htmlCount} HTML file(s) processed`);
+                } else {
+                    zipStatus.text('⚠️ No HTML file found in ZIP');
+                    contentInfo.html('No HTML files found');
+                }
+
+                imageFiles.html(`${imageCount} image(s) found and converted to WebP`);
+                
+                if (convertedImages.length > 0) {
+                    downloadWebPBtn.removeClass('hidden');
+                }
+
+                fileResults.removeClass('hidden');
+                processZipBtn.prop('disabled', false);
+
+            } catch (error) {
+                console.error('Full error:', error);
+                zipStatus.text('❌ Error processing ZIP file: ' + error.message);
+                processZipBtn.prop('disabled', false);
+            }
+        });
+
+        // Download converted WebP images
+        downloadWebPBtn.on('click', async function() {
+            if (convertedImages.length === 0) return;
+
+            try {
+                const zip = new JSZip();
+                const imagesFolder = zip.folder('webp-images');
+
+                // Add all converted images to the zip
+                convertedImages.forEach(img => {
+                    imagesFolder.file(img.name, img.blob);
+                });
+
+                // Generate and download the zip
+                const content = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'converted-webp-images.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                // Show feedback
+                const originalText = downloadWebPBtn.text();
+                downloadWebPBtn.text('✅ Downloaded!');
+                setTimeout(() => downloadWebPBtn.text(originalText), 2000);
+
+            } catch (error) {
+                alert('Error creating download: ' + error.message);
+            }
+        });
+
+        // Demo HTML
+        const demoHTML = `<!-- wp:paragraph -->
+<section data-start="1002" data-end="1064" style="font-weight: 400; color: red;">
+  <p>
+    <a href="https://www.socialpilot.co/blog/effective-social-media-strategy-for-business">social media marketing strategy</a>
+  </p>
+  <p>
+    <a href="https://www.socialpilot.co/" rel="dofollow" title="www.socialpilot.co">SocialPilot</a>
+  </p>
+  <p>
+    <a href="https://www.socialpilot.co/blog/how-to-collect-customer-feedback-on-instagram" target="_blank" title="Good Title"> through their posts and feedback</a>
+  </p>
+  <p>
+    <a href="https://example.com" rel="dofollow">External Example with dofollow - should keep rel</a>
+  </p>
+  <p>
+    <a href="https://another-site.com">Regular External Link - should get nofollow</a>
+  </p>
+  <p>
+    <a href="https://github.com/user/repo" title="" rel="sponsored">GitHub Link with sponsored - should keep rel</a>
+  </p>
+  <p>
+    <a href="https://test-site.com" rel="">External with empty rel - should get nofollow</a>
+  </p>
+</section>
+
+<figure class="wp-block-image">
+  <img src="https://lh7-rt.googleusercontent.com/docsz/AD_4nXcCarM_Pcj0zDPDTMNOKtmPPZspbbAf_5kJ6MU8XcCDRFfdAxM9ekZ48L920eZ6qpte6y7vSbGzVanH6-u7yStNyMyoGZb-z6idDRvE6gZYZjaezMkC0JRn5YaWeac3JpOhD44J7A?key=ihGko6LTOrDqg2MwwFCaHi7W" alt="Example Image" title="Sample Title">
+</figure>
+
+<figure class="wp-block-image">
+  <img src="https://example.com/regular-image.jpg" alt="Regular Image">
+</figure>
+
+</section>
+<!-- /wp:paragraph -->`;
+
+        // Event handlers
+        processBtn.on('click', function() {
+            const input = inputHtml.val();
+            if (!input.trim()) {
+                alert('Please enter some HTML to process');
+                return;
+            }
+
+            try {
+                const processed = processor.processHTML(input);
+                outputHtml.val(processed);
+                copyBtn.prop('disabled', false);
+                
+                processedIndicator.removeClass('hidden');
+                copyIndicator.addClass('hidden');
+                
+                // Update stats
+                const processingStats = processor.getStats();
+                $('#linkCount').text(processingStats.linkCount);
+                $('#socialPilotCount').text(processingStats.socialPilotCount);
+                $('#externalCount').text(processingStats.externalCount);
+                $('#commentCount').text(processingStats.commentCount);
+                $('#attrCount').text(processingStats.attrCount);
+                $('#imageCount').text(processingStats.imageCount);
+                stats.removeClass('hidden');
+
+                setTimeout(() => processedIndicator.addClass('hidden'), 3000);
+            } catch (error) {
+                alert('Error processing HTML: ' + error.message);
+            }
+        });
+
+        demoBtn.on('click', function() {
+            inputHtml.val(demoHTML);
+        });
+
+        clearBtn.on('click', function() {
+            inputHtml.val('');
+            outputHtml.val('');
+            copyBtn.prop('disabled', true);
+            processedIndicator.addClass('hidden');
+            copyIndicator.addClass('hidden');
+            stats.addClass('hidden');
+            fileResults.addClass('hidden');
+            convertedImages = [];
+        });
+
+        copyBtn.on('click', async function() {
+            const output = outputHtml.val();
+            if (!output) return;
+
+            try {
+                await navigator.clipboard.writeText(output);
+                copyIndicator.removeClass('hidden');
+                setTimeout(() => copyIndicator.addClass('hidden'), 2000);
+            } catch (err) {
+                // Fallback for older browsers
+                outputHtml[0].select();
+                document.execCommand('copy');
+                copyIndicator.removeClass('hidden');
+                setTimeout(() => copyIndicator.addClass('hidden'), 2000);
+            }
+        });
+
+        // Auto-process on Enter (Ctrl+Enter)
+        inputHtml.on('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                processBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
