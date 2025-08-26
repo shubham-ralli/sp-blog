@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Link Updater</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .font-mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-6 py-8 max-w-7xl">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">HTML Link Updater</h1>
+            <p class="text-gray-600">Process HTML links with custom rules for SocialPilot and external links</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Input Section -->
+            <div class="space-y-4">
+                <div>
+                    <label for="inputHtml" class="block text-lg font-semibold text-gray-900 mb-3">
+                        Input HTML
+                    </label>
+                    <textarea 
+                        id="inputHtml" 
+                        placeholder="Paste your HTML here..."
+                        class="w-full h-96 p-4 border border-gray-300 rounded-lg font-mono text-sm resize-y focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    ></textarea>
+                </div>
+                
+                <div class="flex flex-wrap gap-3">
+                    <button 
+                        id="processBtn"
+                        class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                        Process HTML
+                    </button>
+                    <button 
+                        id="demoBtn"
+                        class="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    >
+                        Fill Demo
+                    </button>
+                    <button 
+                        id="clearBtn"
+                        class="px-6 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded-lg transition-colors focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                    >
+                        Clear
+                    </button>
+                </div>
+
+                <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 class="font-semibold text-blue-900 mb-2">Processing Rules:</h3>
+                    <ul class="text-sm text-blue-800 space-y-1">
+                        <li><strong>SocialPilot links:</strong> Remove nofollow, add dofollow + smart title generation + remove target</li>
+                        <li><strong>External links:</strong> Add nofollow/noopener/noreferrer + target="_blank" + domain-based titles (if no title exists)</li>
+                        <li><strong>Existing dofollow:</strong> Preserved for external links</li>
+                        <li><strong>Cleanup:</strong> Remove font-weight: 400 styles, data-start/data-end attributes, and HTML comments</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Output Section -->
+            <div class="space-y-4">
+                <div>
+                    <label for="outputHtml" class="block text-lg font-semibold text-gray-900 mb-3">
+                        Output HTML
+                    </label>
+                    <textarea 
+                        id="outputHtml" 
+                        readonly
+                        placeholder="Processed HTML will appear here..."
+                        class="w-full h-96 p-4 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50 resize-y"
+                    ></textarea>
+                </div>
+                
+                <div class="flex flex-wrap gap-3 items-center">
+                    <button 
+                        id="copyBtn"
+                        class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                        disabled
+                    >
+                        Copy Output
+                    </button>
+                    <span id="processedIndicator" class="hidden text-green-700 font-semibold bg-green-100 px-3 py-1 rounded-full text-sm">
+                        ✓ Processed Successfully
+                    </span>
+                    <span id="copyIndicator" class="hidden text-blue-700 font-semibold bg-blue-100 px-3 py-1 rounded-full text-sm">
+                        ✓ Copied to Clipboard
+                    </span>
+                </div>
+
+                <div id="stats" class="hidden p-4 bg-gray-100 rounded-lg">
+                    <h4 class="font-semibold text-gray-900 mb-2">Processing Stats:</h4>
+                    <div class="text-sm text-gray-700 space-y-1">
+                        <div>Links processed: <span id="linkCount" class="font-mono">0</span></div>
+                        <div>SocialPilot links: <span id="socialPilotCount" class="font-mono">0</span></div>
+                        <div>External links: <span id="externalCount" class="font-mono">0</span></div>
+                        <div>Comments removed: <span id="commentCount" class="font-mono">0</span></div>
+                        <div>Attributes cleaned: <span id="attrCount" class="font-mono">0</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-12 pt-6 border-t border-gray-200 text-center">
+            <p class="text-gray-500 text-sm">
+                🔒 Local tool - No data is sent anywhere except your browser
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        class HTMLLinkProcessor {
+            constructor() {
+                this.stats = {
+                    linkCount: 0,
+                    socialPilotCount: 0,
+                    externalCount: 0,
+                    commentCount: 0,
+                    attrCount: 0
+                };
+            }
+
+            createTitleFromUrl(href) {
+                if (!href) return "SocialPilot";
+                
+                try {
+                    // Remove trailing slash and get the last segment
+                    let slug = href.replace(/\/$/, '').split('/').pop();
+                    
+                    // Remove query parameters and hash
+                    slug = slug.split('?')[0].split('#')[0];
+                    
+                    // If it's just the domain or empty slug, extract domain name
+                    if (!slug || slug === href.split('//')[1]?.split('/')[0]) {
+                        const domain = href.split('//')[1]?.split('/')[0];
+                        if (domain && domain.includes('socialpilot')) {
+                            return "SocialPilot";
+                        }
+                        return domain || "SocialPilot";
+                    }
+                    
+                    // Decode URL and replace hyphens/underscores with spaces
+                    let title = decodeURIComponent(slug)
+                        .replace(/[-_]/g, ' ')
+                        .replace(/\s+/g, ' ') // normalize multiple spaces
+                        .trim();
+                    
+                    // Capitalize first letter of each word
+                    title = title.split(' ')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                        .join(' ');
+                    
+                    return title || "SocialPilot";
+                } catch (e) {
+                    return "SocialPilot";
+                }
+            }
+
+            normalizeRel(value) {
+                let items = [];
+                if (Array.isArray(value)) {
+                    items = value;
+                } else if (typeof value === 'string') {
+                    items = value.split(/\s+/);
+                }
+                return new Set(items.filter(item => item.length > 0));
+            }
+
+            processHTML(html) {
+                if (!html.trim()) return '';
+                
+                this.resetStats();
+                
+                // Create a temporary DOM element to work with
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+
+                // Remove HTML comments
+                this.removeComments(tempDiv);
+
+                // Clean attributes and process links
+                this.cleanAttributes(tempDiv);
+                this.processLinks(tempDiv);
+
+                return tempDiv.innerHTML;
+            }
+
+            removeComments(element) {
+                const walker = document.createTreeWalker(
+                    element,
+                    NodeFilter.SHOW_COMMENT,
+                    null,
+                    false
+                );
+
+                const comments = [];
+                let node;
+                while (node = walker.nextNode()) {
+                    comments.push(node);
+                }
+
+                comments.forEach(comment => {
+                    comment.remove();
+                    this.stats.commentCount++;
+                });
+            }
+
+            cleanAttributes(element) {
+                const fwPattern = /(^|;)\s*font-weight\s*:\s*400\s*;?(?=;|$)/gi;
+                const allElements = element.querySelectorAll('*');
+
+                allElements.forEach(tag => {
+                    // Remove font-weight: 400 from style
+                    const style = tag.getAttribute('style');
+                    if (style && fwPattern.test(style)) {
+                        const newStyle = style.replace(fwPattern, '$1').replace(/^;+|;+$/g, '').replace(/;;+/g, ';');
+                        if (newStyle.trim()) {
+                            tag.setAttribute('style', newStyle);
+                        } else {
+                            tag.removeAttribute('style');
+                        }
+                        this.stats.attrCount++;
+                    }
+
+                    // Remove data-start and data-end attributes
+                    ['data-start', 'data-end'].forEach(attr => {
+                        if (tag.hasAttribute(attr)) {
+                            tag.removeAttribute(attr);
+                            this.stats.attrCount++;
+                        }
+                    });
+                });
+            }
+
+            processLinks(element) {
+                const links = element.querySelectorAll('a[href]');
+                this.stats.linkCount = links.length;
+
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    const currentRel = this.normalizeRel(link.getAttribute('rel') || '');
+
+                    if (href.includes('socialpilot')) {
+                        // SocialPilot link processing
+                        // Remove nofollow if present and add dofollow
+                        currentRel.delete('nofollow');
+                        currentRel.add('dofollow');
+                        link.setAttribute('rel', Array.from(currentRel).sort().join(' '));
+                        
+                        // Handle title - only add/update if no meaningful title exists
+                        const existingTitle = link.getAttribute('title');
+                        if (!existingTitle || existingTitle.trim() === '' || 
+                            existingTitle.includes('socialpilot.co') || 
+                            existingTitle.includes('www.socialpilot.co') ||
+                            existingTitle.replace(/[-_\s]/g, '').toLowerCase() === href.replace(/[-_\s\/]/g, '').toLowerCase().split('socialpilot')[0]) {
+                            
+                            const generatedTitle = this.createTitleFromUrl(href);
+                            link.setAttribute('title', generatedTitle);
+                        }
+                        
+                        // Remove target attribute for SocialPilot links
+                        if (link.hasAttribute('target')) {
+                            link.removeAttribute('target');
+                        }
+                        
+                        this.stats.socialPilotCount++;
+                    } else {
+                        // External link processing
+                        const originalRel = link.getAttribute('rel');
+                        
+                        if (!originalRel || originalRel.trim() === '') {
+                            // No existing rel attribute - add nofollow attributes
+                            currentRel.add('nofollow');
+                            currentRel.add('noopener');
+                            currentRel.add('noreferrer');
+                            link.setAttribute('rel', Array.from(currentRel).sort().join(' '));
+                            link.setAttribute('target', '_blank');
+                            
+                            // Add title for external links only if they don't have one
+                            const existingTitle = link.getAttribute('title');
+                            if (!existingTitle || existingTitle.trim() === '') {
+                                try {
+                                    const url = new URL(href);
+                                    const domain = url.hostname.replace(/^www\./, '');
+                                    const domainTitle = domain.split('.')[0];
+                                    const capitalizedTitle = domainTitle.charAt(0).toUpperCase() + domainTitle.slice(1);
+                                    link.setAttribute('title', `Visit ${capitalizedTitle}`);
+                                } catch (e) {
+                                    // If URL parsing fails, use a generic title
+                                    link.setAttribute('title', 'External Link');
+                                }
+                            }
+                        } else {
+                            // Has existing rel attribute - keep it unchanged
+                            // Just normalize the existing rel values (remove duplicates, sort)
+                            link.setAttribute('rel', Array.from(currentRel).sort().join(' '));
+                        }
+                        this.stats.externalCount++;
+                    }
+                });
+            }
+
+            resetStats() {
+                this.stats = {
+                    linkCount: 0,
+                    socialPilotCount: 0,
+                    externalCount: 0,
+                    commentCount: 0,
+                    attrCount: 0
+                };
+            }
+
+            getStats() {
+                return this.stats;
+            }
+        }
+
+        // Initialize the processor
+        const processor = new HTMLLinkProcessor();
+
+        // DOM elements
+        const inputHtml = $('#inputHtml');
+        const outputHtml = $('#outputHtml');
+        const processBtn = $('#processBtn');
+        const demoBtn = $('#demoBtn');
+        const clearBtn = $('#clearBtn');
+        const copyBtn = $('#copyBtn');
+        const processedIndicator = $('#processedIndicator');
+        const copyIndicator = $('#copyIndicator');
+        const stats = $('#stats');
+
+        // Demo HTML
+        const demoHTML = `<!-- wp:paragraph -->
+<section data-start="1002" data-end="1064" style="font-weight: 400; color: red;">
+  <p>
+    <a href="https://www.socialpilot.co/blog/effective-social-media-strategy-for-business">social media marketing strategy</a>
+  </p>
+  <p>
+    <a href="https://www.socialpilot.co/" rel="dofollow" title="www.socialpilot.co">SocialPilot</a>
+  </p>
+  <p>
+    <a href="https://www.socialpilot.co/blog/how-to-collect-customer-feedback-on-instagram" target="_blank" title="Good Title"> through their posts and feedback</a>
+  </p>
+  <p>
+    <a href="https://example.com" rel="dofollow">External Example with dofollow</a>
+  </p>
+  <p>
+    <a href="https://another-site.com">Regular External Link</a>
+  </p>
+  <p>
+    <a href="https://github.com/user/repo" title="">GitHub Link with empty title</a>
+  </p>
+</section>
+<!-- /wp:paragraph -->`;
+
+        // Event handlers
+        processBtn.on('click', function() {
+            const input = inputHtml.val();
+            if (!input.trim()) {
+                alert('Please enter some HTML to process');
+                return;
+            }
+
+            try {
+                const processed = processor.processHTML(input);
+                outputHtml.val(processed);
+                copyBtn.prop('disabled', false);
+                
+                processedIndicator.removeClass('hidden');
+                copyIndicator.addClass('hidden');
+                
+                // Update stats
+                const processingStats = processor.getStats();
+                $('#linkCount').text(processingStats.linkCount);
+                $('#socialPilotCount').text(processingStats.socialPilotCount);
+                $('#externalCount').text(processingStats.externalCount);
+                $('#commentCount').text(processingStats.commentCount);
+                $('#attrCount').text(processingStats.attrCount);
+                stats.removeClass('hidden');
+
+                setTimeout(() => processedIndicator.addClass('hidden'), 3000);
+            } catch (error) {
+                alert('Error processing HTML: ' + error.message);
+            }
+        });
+
+        demoBtn.on('click', function() {
+            inputHtml.val(demoHTML);
+        });
+
+        clearBtn.on('click', function() {
+            inputHtml.val('');
+            outputHtml.val('');
+            copyBtn.prop('disabled', true);
+            processedIndicator.addClass('hidden');
+            copyIndicator.addClass('hidden');
+            stats.addClass('hidden');
+        });
+
+        copyBtn.on('click', async function() {
+            const output = outputHtml.val();
+            if (!output) return;
+
+            try {
+                await navigator.clipboard.writeText(output);
+                copyIndicator.removeClass('hidden');
+                setTimeout(() => copyIndicator.addClass('hidden'), 2000);
+            } catch (err) {
+                // Fallback for older browsers
+                outputHtml[0].select();
+                document.execCommand('copy');
+                copyIndicator.removeClass('hidden');
+                setTimeout(() => copyIndicator.addClass('hidden'), 2000);
+            }
+        });
+
+        // Auto-process on Enter (Ctrl+Enter)
+        inputHtml.on('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                processBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
